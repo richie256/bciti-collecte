@@ -62,7 +62,7 @@ class MQTTClient:
                 "device": device
             }
             self.client.publish(discovery_topic, json.dumps(payload), retain=True)
-            logger.debug(f"Published discovery for {en_key}")
+            logger.info(f"Published discovery for {en_key}")
 
     def publish_states(self, next_dates):
         for en_key, event_date in next_dates.items():
@@ -74,7 +74,7 @@ class MQTTClient:
                 state_value = "unknown"
                 
             self.client.publish(state_topic, state_value, retain=True)
-            logger.debug(f"Published state for {en_key}: {state_value}")
+            logger.info(f"Published state for {en_key}: {state_value}")
 
     def stop(self):
         self.client.loop_stop()
