@@ -20,6 +20,7 @@ mqtt_client = MQTTClient()
 def job():
     logger.info("Starting collection schedule update job")
     next_dates = get_next_collections()
+    logger.info(f"Data returned from scraper: {next_dates}")
     if next_dates:
         mqtt_client.publish_states(next_dates)
         logger.info("Successfully updated collection dates")
