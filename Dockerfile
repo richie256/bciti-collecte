@@ -13,12 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Set environment variables with defaults
-ENV MQTT_BROKER=mqtt.titan.home.interstellarbagel.xyz
-ENV MQTT_PORT=1883
-ENV BROSSARD_SECTOR=m
-ENV UPDATE_INTERVAL=3600
-
 ENV TZ=America/Montreal
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
 
