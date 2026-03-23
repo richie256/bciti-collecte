@@ -11,6 +11,9 @@ class MQTTClient:
         if Config.MQTT_USER and Config.MQTT_PASSWORD:
             self.client.username_pw_set(Config.MQTT_USER, Config.MQTT_PASSWORD)
         
+        if Config.MQTT_USE_TLS:
+            self.client.tls_set()
+        
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
 
