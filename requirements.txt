@@ -1,6 +1,7 @@
 requests
 icalendar
 paho-mqtt
+pytest
 python-dateutil
 schedule
 beautifulsoup4
