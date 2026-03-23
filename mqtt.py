@@ -26,7 +26,7 @@ class MQTTClient:
 
     def connect(self):
         try:
-            self.client.connect(Config.MQTT_BROKER, Config.MQTT_PORT, 60)
+            self.client.connect(Config.MQTT_HOST, Config.MQTT_PORT, 60)
             self.client.loop_start()
         except Exception as e:
             logger.error(f"Error connecting to MQTT: {e}")

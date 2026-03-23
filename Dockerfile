@@ -18,6 +18,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && dpkg-reconfigure -f nonint
 
 # Run as a non-root user for security
 RUN useradd -m scraperuser
+RUN chown -R scraperuser:scraperuser /app
 USER scraperuser
 
 # Start the application

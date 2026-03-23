@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    MQTT_BROKER = os.getenv("MQTT_BROKER", "mqtt.titan.home.interstellarbagel.xyz")
+    MQTT_HOST = os.getenv("MQTT_HOST", "undef")
     MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
     MQTT_USER = os.getenv("MQTT_USER")
     MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
