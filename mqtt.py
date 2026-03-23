@@ -8,8 +8,8 @@ logger = logging.getLogger(__name__)
 class MQTTClient:
     def __init__(self):
         self.client = mqtt.Client()
-        if Config.MQTT_USER and Config.MQTT_PASSWORD:
-            self.client.username_pw_set(Config.MQTT_USER, Config.MQTT_PASSWORD)
+        if Config.MQTT_USERNAME and Config.MQTT_PASSWORD:
+            self.client.username_pw_set(Config.MQTT_USERNAME, Config.MQTT_PASSWORD)
         
         if Config.MQTT_USE_TLS:
             self.client.tls_set()

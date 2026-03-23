@@ -3,7 +3,7 @@ import os
 class Config:
     MQTT_HOST = os.getenv("MQTT_HOST", "undef")
     MQTT_PORT = int(os.getenv("MQTT_PORT", 1883))
-    MQTT_USER = os.getenv("MQTT_USER")
+    MQTT_USERNAME = os.getenv("MQTT_USERNAME")
     MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
     BROSSARD_SECTOR = os.getenv("BROSSARD_SECTOR", "m").lower()
     UPDATE_INTERVAL = int(os.getenv("UPDATE_INTERVAL", 1800))
