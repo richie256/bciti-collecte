@@ -1,0 +1,6 @@
+requests
+icalendar
+paho-mqtt
+python-dateutil
+schedule
+beautifulsoup4
