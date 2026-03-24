@@ -26,6 +26,9 @@ def job():
         logger.info("Successfully updated collection dates")
     else:
         logger.warning("No collection dates found or error occurred")
+    
+    next_interval_minutes = Config.UPDATE_INTERVAL / 60
+    logger.info(f"Next update in approximately {next_interval_minutes:.0f} minutes.")
 
 def signal_handler(sig, frame):
     logger.info("Shutting down...")
