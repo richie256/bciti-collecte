@@ -4,6 +4,7 @@ import time
 import os
 from bs4 import BeautifulSoup
 from datetime import datetime, date, timezone
+from zoneinfo import ZoneInfo
 import logging
 from config import Config
 
@@ -71,7 +72,7 @@ def parse_web_page(html_content):
                             date_str = date_span.get_text(strip=True)
                             try:
                                 # Date format is DD/MM/YYYY based on curl output
-                                next_date = datetime.strptime(date_str, "%d/%m/%Y").date()
+                                next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
                                 current_next = next_collections[en_key]
                                 if current_next is None or next_date < current_next:
                                     next_collections[en_key] = next_date
@@ -84,7 +85,7 @@ def parse_web_page(html_content):
         return {}
 
 def save_cache(next_dates):
-    # Convert dates to strings for JSON
+    # Convert datetimes to strings for JSON
     serializable_dates = {k: v.isoformat() if v else None for k, v in next_dates.items()}
     cache_data = {
         "timestamp": time.time(),
@@ -115,14 +116,14 @@ def load_cache():
             logger.info("Cache expired")
             return None
         
-        # Convert strings back to dates
+        # Convert strings back to datetimes
         next_dates = {}
-        today = date.today()
+        today = datetime.now(ZoneInfo("America/Toronto"))
         stale_date_found = False
         
         for k, v in cache_data.get("data", {}).items():
             if v:
-                d = date.fromisoformat(v)
+                d = datetime.fromisoformat(v)
                 next_dates[k] = d
                 # If a date in cache is in the past, cache is potentially stale
                 if d < today:
