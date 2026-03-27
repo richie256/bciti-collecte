@@ -60,7 +60,7 @@ class MQTTClient:
                 "name": f"{display_name}",
                 "state_topic": f"homeassistant/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state",
                 "unique_id": f"brossard_{Config.BROSSARD_SECTOR}_{en_key}",
-                "device_class": "timestamp",
+                "device_class": "date",
                 "icon": icon,
                 "device": device
             }
@@ -74,8 +74,8 @@ class MQTTClient:
         for en_key, event_date in next_dates.items():
             state_topic = f"homeassistant/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state"
             if event_date:
-                # Format to ISO 8601 string
-                state_value = event_date.isoformat()
+                # Format to YYYY-MM-DD string for 'date' device class
+                state_value = event_date.strftime("%Y-%m-%d")
             else:
                 state_value = "unknown"
                 

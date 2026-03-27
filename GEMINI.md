@@ -55,7 +55,7 @@ The application is configured via environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `MQTT_BROKER` | Address of the MQTT broker | `mqtt.titan.home.interstellarbagel.xyz` |
+| `MQTT_HOST` | Address of the MQTT broker | `mqtt.titan.home.interstellarbagel.xyz` |
 | `MQTT_PORT` | Port for the MQTT broker | `1883` |
 | `MQTT_USER` | Username for MQTT authentication | `None` |
 | `MQTT_PASSWORD` | Password for MQTT authentication | `None` |
