@@ -64,10 +64,11 @@ The application is configured via environment variables:
 | `CACHE_FILE` | Path to the local cache file | `collections_cache.json` |
 | `CACHE_MAX_AGE` | Maximum age of cache in seconds before refresh | `43200` (12 hours) |
 | `RUN_ONCE` | If `true`, exit after the first successful run | `false` |
+| `LANGUAGE` | Language for sensor names (`fr` or `en`) | `fr` |
 
 ## Development Conventions
 
 - **Logging**: Use the standard `logging` library. Default format is set in `main.py`.
 - **Error Handling**: Gracefully handle network failures and parsing errors; the application should retry according to the schedule.
-- **MQTT Discovery**: Follows Home Assistant's MQTT discovery format for `timestamp` device classes.
+- **MQTT Discovery**: Follows Home Assistant's MQTT discovery format for `date` device classes.
 - **Scraping**: The scraper targets `https://brossard.ca/en/collection-calendar/sector-{BROSSARD_SECTOR}/`. If the website structure changes, updates to `scraper.py` will be required.

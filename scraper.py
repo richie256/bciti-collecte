@@ -99,7 +99,7 @@ def save_cache(next_dates):
     except Exception as e:
         logger.error(f"Failed to save cache: {e}")
 
-def load_cache():
+def load_cache_raw():
     if not os.path.exists(Config.CACHE_FILE):
         return None
     
@@ -111,35 +111,42 @@ def load_cache():
         if cache_data.get("sector") != Config.BROSSARD_SECTOR:
             return None
             
-        # Check if cache is too old
-        if time.time() - cache_data.get("timestamp", 0) > Config.CACHE_MAX_AGE:
-            logger.info("Cache expired")
-            return None
-        
         # Convert strings back to datetimes
         next_dates = {}
-        today = datetime.now(ZoneInfo("America/Toronto"))
-        stale_date_found = False
-        
         for k, v in cache_data.get("data", {}).items():
             if v:
-                d = datetime.fromisoformat(v)
-                next_dates[k] = d
-                # If a date in cache is in the past, cache is potentially stale
-                if d < today:
-                    stale_date_found = True
+                next_dates[k] = datetime.fromisoformat(v)
             else:
                 next_dates[k] = None
         
-        if stale_date_found:
+        return {
+            "timestamp": cache_data.get("timestamp", 0),
+            "data": next_dates
+        }
+    except Exception as e:
+        logger.error(f"Failed to load raw cache: {e}")
+        return None
+
+def load_cache():
+    raw_cache = load_cache_raw()
+    if not raw_cache:
+        return None
+    
+    # Check if cache is too old (12 hours by default)
+    if time.time() - raw_cache["timestamp"] > Config.CACHE_MAX_AGE:
+        logger.info("Cache metadata expired")
+        return None
+    
+    next_dates = raw_cache["data"]
+    today = datetime.now(ZoneInfo("America/Toronto")).date()
+    
+    for v in next_dates.values():
+        if v and v.date() < today:
             logger.info("Cache contains past dates, forcing refresh")
             return None
             
-        logger.info("Using cached collection data")
-        return next_dates
-    except Exception as e:
-        logger.error(f"Failed to load cache: {e}")
-        return None
+    logger.info("Using cached collection data")
+    return next_dates
 
 def get_next_collections(force_refresh=False):
     if not force_refresh:
@@ -149,7 +156,33 @@ def get_next_collections(force_refresh=False):
     
     logger.info("Fetching fresh collection data from website")
     content = fetch_web_page()
-    next_dates = parse_web_page(content)
-    if next_dates:
-        save_cache(next_dates)
-    return next_dates
+    web_dates = parse_web_page(content)
+    
+    if not web_dates:
+        # If fetch failed, return whatever we have in cache even if stale
+        raw_cache = load_cache_raw()
+        return raw_cache["data"] if raw_cache else {}
+
+    # Merge with raw cache to preserve "today's" dates
+    # If the website has already rolled over to the next week but it's still "today",
+    # we want to keep "today" until the day is over.
+    raw_cache = load_cache_raw()
+    final_dates = {}
+    today = datetime.now(ZoneInfo("America/Toronto")).date()
+    
+    # If raw_cache is from a different sector, don't use it for merging
+    cached_dates = raw_cache["data"] if raw_cache else {}
+    
+    for key in COLLECTION_MAPPING.values():
+        web_date = web_dates.get(key)
+        cached_date = cached_dates.get(key)
+        
+        if cached_date and cached_date.date() == today:
+            # Preserve today's date if we had it in cache
+            final_dates[key] = cached_date
+            logger.info(f"Preserving today's collection for {key}: {cached_date.date()}")
+        else:
+            final_dates[key] = web_date
+            
+    save_cache(final_dates)
+    return final_dates
