@@ -1,0 +1,11 @@
+.git
+.gitignore
+__pycache__
+.pytest_cache
+*.pyc
+.env
+collections_cache.json
+*.md
+test_*.py
+verify_date_format.py
+.github

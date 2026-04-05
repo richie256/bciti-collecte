@@ -2,6 +2,7 @@ import time
 import logging
 import signal
 import sys
+from typing import Any
 import schedule
 from config import Config
 from scraper import get_next_collections
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 # Initialize MQTT Client
 mqtt_client = MQTTClient()
 
-def job():
+def job() -> None:
     logger.info("Starting collection schedule update job")
     next_dates = get_next_collections()
     logger.info(f"Data returned from scraper: {next_dates}")
@@ -30,12 +31,12 @@ def job():
     next_interval_minutes = Config.UPDATE_INTERVAL / 60
     logger.info(f"Next update in approximately {next_interval_minutes:.0f} minutes.")
 
-def signal_handler(sig, frame):
+def signal_handler(sig: int, frame: Any) -> None:
     logger.info("Shutting down...")
     mqtt_client.stop()
     sys.exit(0)
 
-def main():
+def main() -> None:
     # Register signal handlers for clean exit
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)

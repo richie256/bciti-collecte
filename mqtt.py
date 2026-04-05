@@ -1,11 +1,13 @@
 import paho.mqtt.client as mqtt
 import json
 import logging
+from typing import Dict, Optional, List, Tuple, Any
+from datetime import datetime
 from config import Config
 
 logger = logging.getLogger(__name__)
 
-TRANSLATIONS = {
+TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "fr": {
         "garbage": "Déchets",
         "recycling": "Recyclage",
@@ -35,40 +37,48 @@ TRANSLATIONS = {
 }
 
 class MQTTClient:
-    def __init__(self):
+    def __init__(self) -> None:
         self.client = mqtt.Client()
+        self.availability_topic: str = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}/availability"
+
         if Config.MQTT_USERNAME and Config.MQTT_PASSWORD:
             self.client.username_pw_set(Config.MQTT_USERNAME, Config.MQTT_PASSWORD)
         
         if Config.MQTT_USE_TLS:
             self.client.tls_set()
         
+        # Set Last Will and Testament
+        self.client.will_set(self.availability_topic, payload="offline", retain=True)
+
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
 
-    def _on_connect(self, client, userdata, flags, rc):
+    def _on_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
         if rc == 0:
             logger.info("Connected to MQTT broker")
-            self.publish_discovery()
+            # Publish availability
+            self.client.publish(self.availability_topic, payload="online", retain=True)
+            if Config.HASS_DISCOVERY_ENABLED:
+                self.publish_discovery()
         else:
             logger.error(f"Failed to connect to MQTT broker, return code {rc}")
 
-    def _on_disconnect(self, client, userdata, rc):
+    def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int) -> None:
         logger.info(f"Disconnected from MQTT broker with code {rc}")
 
-    def connect(self):
+    def connect(self) -> None:
         try:
             self.client.connect(Config.MQTT_HOST, Config.MQTT_PORT, 60)
             self.client.loop_start()
         except Exception as e:
             logger.error(f"Error connecting to MQTT: {e}")
 
-    def publish_discovery(self):
+    def publish_discovery(self) -> None:
         lang = Config.LANGUAGE if Config.LANGUAGE in TRANSLATIONS else "fr"
         t = TRANSLATIONS[lang]
 
         # (key, icon)
-        categories = [
+        categories: List[Tuple[str, str]] = [
             ("garbage", "mdi:delete"),
             ("recycling", "mdi:recycle"),
             ("food_residues", "mdi:food-apple"),
@@ -88,13 +98,14 @@ class MQTTClient:
 
         for en_key, icon in categories:
             display_name = t.get(en_key, en_key.replace("_", " ").title())
-            discovery_topic = f"homeassistant/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/config"
+            discovery_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/config"
             payload = {
                 "name": f"{display_name}",
-                "state_topic": f"homeassistant/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state",
+                "state_topic": f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state",
                 "unique_id": f"brossard_{Config.BROSSARD_SECTOR}_{en_key}",
                 "device_class": "date",
                 "icon": icon,
+                "availability_topic": self.availability_topic,
                 "device": device
             }
             try:
@@ -103,9 +114,9 @@ class MQTTClient:
             except Exception as e:
                 logger.error(f"Failed to publish discovery for {en_key}: {e}")
 
-    def publish_states(self, next_dates):
+    def publish_states(self, next_dates: Dict[str, Optional[datetime]]) -> None:
         for en_key, event_date in next_dates.items():
-            state_topic = f"homeassistant/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state"
+            state_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state"
             if event_date:
                 # Format to ISO 8601 date string (YYYY-MM-DD)
                 state_value = event_date.date().isoformat()
@@ -118,6 +129,6 @@ class MQTTClient:
             except Exception as e:
                 logger.error(f"Failed to publish state for {en_key}: {e}")
 
-    def stop(self):
+    def stop(self) -> None:
         self.client.loop_stop()
         self.client.disconnect()

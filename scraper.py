@@ -6,12 +6,15 @@ from bs4 import BeautifulSoup
 from datetime import datetime, date, timezone
 from zoneinfo import ZoneInfo
 import logging
+from typing import Dict, Any, Optional
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from config import Config
 
 logger = logging.getLogger(__name__)
 
 # Mapping of English titles on website to internal keys
-COLLECTION_MAPPING = {
+COLLECTION_MAPPING: Dict[str, str] = {
     "Garbage": "garbage",
     "Recycling": "recycling",
     "Food residues": "food_residues",
@@ -22,27 +25,41 @@ COLLECTION_MAPPING = {
     "Surplus recovery": "surplus_recovery"
 }
 
-def fetch_web_page():
+def fetch_web_page() -> Optional[str]:
     try:
         headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        response = requests.get(Config.WEB_URL, headers=headers, timeout=30)
+        
+        session = requests.Session()
+        retries = Retry(
+            total=5,
+            backoff_factor=1,
+            status_forcelist=[500, 502, 503, 504],
+            raise_on_status=True
+        )
+        session.mount("https://", HTTPAdapter(max_retries=retries))
+        
+        response = session.get(Config.WEB_URL, headers=headers, timeout=30)
         response.raise_for_status()
         return response.text
     except Exception as e:
         logger.error(f"Failed to fetch web data: {e}")
         return None
 
-def parse_web_page(html_content):
+def parse_web_page(html_content: Optional[str]) -> Dict[str, Optional[datetime]]:
     if not html_content:
         return {}
 
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
-        next_collections = {key: None for key in COLLECTION_MAPPING.values()}
+        next_collections: Dict[str, Optional[datetime]] = {key: None for key in COLLECTION_MAPPING.values()}
         
         cards = soup.find_all("div", class_="collect-card")
+        if not cards:
+            logger.warning("No collection cards found in HTML.")
+            return next_collections
+
         for card in cards:
             title_tag = card.find("h4")
             if not title_tag:
@@ -57,7 +74,7 @@ def parse_web_page(html_content):
             if not en_key:
                 # Try partial match if exact match fails
                 for k, v in COLLECTION_MAPPING.items():
-                    if k in title:
+                    if k.lower() in title.lower():
                         en_key = v
                         break
             
@@ -77,14 +94,14 @@ def parse_web_page(html_content):
                                 if current_next is None or next_date < current_next:
                                     next_collections[en_key] = next_date
                             except ValueError as ve:
-                                logger.error(f"Failed to parse date string '{date_str}': {ve}")
+                                logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
 
         return next_collections
     except Exception as e:
         logger.error(f"Failed to parse web data: {e}")
         return {}
 
-def save_cache(next_dates):
+def save_cache(next_dates: Dict[str, Optional[datetime]]) -> None:
     # Convert datetimes to strings for JSON
     serializable_dates = {k: v.isoformat() if v else None for k, v in next_dates.items()}
     cache_data = {
@@ -99,7 +116,7 @@ def save_cache(next_dates):
     except Exception as e:
         logger.error(f"Failed to save cache: {e}")
 
-def load_cache_raw():
+def load_cache_raw() -> Optional[Dict[str, Any]]:
     if not os.path.exists(Config.CACHE_FILE):
         return None
     
@@ -112,7 +129,7 @@ def load_cache_raw():
             return None
             
         # Convert strings back to datetimes
-        next_dates = {}
+        next_dates: Dict[str, Optional[datetime]] = {}
         for k, v in cache_data.get("data", {}).items():
             if v:
                 next_dates[k] = datetime.fromisoformat(v)
@@ -127,7 +144,7 @@ def load_cache_raw():
         logger.error(f"Failed to load raw cache: {e}")
         return None
 
-def load_cache():
+def load_cache() -> Optional[Dict[str, Optional[datetime]]]:
     raw_cache = load_cache_raw()
     if not raw_cache:
         return None
@@ -148,7 +165,7 @@ def load_cache():
     logger.info("Using cached collection data")
     return next_dates
 
-def get_next_collections(force_refresh=False):
+def get_next_collections(force_refresh: bool = False) -> Dict[str, Optional[datetime]]:
     if not force_refresh:
         cached_data = load_cache()
         if cached_data is not None:
@@ -164,10 +181,8 @@ def get_next_collections(force_refresh=False):
         return raw_cache["data"] if raw_cache else {}
 
     # Merge with raw cache to preserve "today's" dates
-    # If the website has already rolled over to the next week but it's still "today",
-    # we want to keep "today" until the day is over.
     raw_cache = load_cache_raw()
-    final_dates = {}
+    final_dates: Dict[str, Optional[datetime]] = {}
     today = datetime.now(ZoneInfo("America/Toronto")).date()
     
     # If raw_cache is from a different sector, don't use it for merging

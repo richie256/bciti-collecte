@@ -1,25 +1,37 @@
-# Use a slim Python image
+# Build stage
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# Final stage
 FROM python:3.12-slim
 
-RUN apt-get update && apt-get install -y curl procps
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=America/Toronto
 
-# Set working directory
+# Install minimal runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends tzdata && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only installed packages from builder
+COPY --from=builder /install /usr/local
 
 # Copy application code
 COPY . .
 
-ENV TZ=America/Montreal
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && dpkg-reconfigure -f noninteractive tzdata
+# Set timezone correctly
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Run as a non-root user for security
-RUN useradd -m scraperuser
-RUN chown -R scraperuser:scraperuser /app
-USER scraperuser
+# Use a non-root user for security
+RUN useradd --create-home --shell /bin/bash appuser && \
+    chown -R appuser:appuser /app
+USER appuser
 
-# Start the application
 CMD ["python", "main.py"]
