@@ -1,7 +1,6 @@
 # Brossard Collection Scraper
 
-[![Tests](https://github.com/richie256/bciti-collecte/actions/workflows/docker-build-push.yml/badge.svg)](https://github.com/richie256/bciti-collecte/actions/workflows/docker-build-push.yml)
-[![Docker Build & Push](https://github.com/richie256/bciti-collecte/actions/workflows/docker-build-push.yml/badge.svg?branch=main)](https://github.com/richie256/bciti-collecte/actions/workflows/docker-build-push.yml)
+[![Build & Tests](https://github.com/richie256/bciti-collecte/actions/workflows/docker-build-push.yml/badge.svg)](https://github.com/richie256/bciti-collecte/actions/workflows/docker-build-push.yml)
 ![Python Version](https://img.shields.io/badge/python-3.12-blue.svg)
 [![GitHub release (latest by date)](https://img.shields.io/github/v/release/richie256/bciti-collecte)](https://github.com/richie256/bciti-collecte/releases)
 [![GitHub License](https://img.shields.io/github/license/richie256/bciti-collecte)](https://github.com/richie256/bciti-collecte/blob/main/LICENSE)
