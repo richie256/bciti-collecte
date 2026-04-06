@@ -30,8 +30,8 @@ COPY . .
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Use a non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser && \
-    chown -R appuser:appuser /app
-USER appuser
+RUN useradd --create-home --shell /bin/bash scraperuser && \
+    chown -R scraperuser:scraperuser /app
+USER scraperuser
 
 CMD ["python", "main.py"]
