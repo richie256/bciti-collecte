@@ -92,5 +92,13 @@ pytest
 - `mqtt.py`: MQTT client handling discovery and state updates.
 - `config.py`: Configuration management.
 
+### CI/CD & Code Coverage
+This project uses **GitHub Actions** for automated testing and **Codecov** for coverage tracking. To set up Codecov for your fork or a similar setup:
+1. Log in to [Codecov](https://codecov.io/) using your GitHub account.
+2. Activate this repository in your Codecov dashboard.
+3. Retrieve your **Repository Upload Token** from Codecov's repository settings.
+4. Go to your GitHub repository: **Settings > Secrets and variables > Actions**.
+5. Create a new secret named `CODECOV_TOKEN` and paste your token as the value.
+
 ## License
 MIT
