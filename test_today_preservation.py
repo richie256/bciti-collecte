@@ -55,6 +55,3 @@ def test_today_preservation():
     # Cleanup
     if os.path.exists(Config.CACHE_FILE):
         os.remove(Config.CACHE_FILE)
-
-if __name__ == "__main__":
-    test_today_preservation()
