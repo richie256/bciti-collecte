@@ -2,6 +2,7 @@ import time
 import logging
 import signal
 import sys
+import os
 from typing import Any
 import schedule
 from config import Config
@@ -15,8 +16,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Heartbeat file path for health check
+HEARTBEAT_FILE = "/tmp/heartbeat"
+
 # Initialize MQTT Client
 mqtt_client = MQTTClient()
+
+def touch_heartbeat() -> None:
+    try:
+        with open(HEARTBEAT_FILE, 'w') as f:
+            f.write(str(time.time()))
+    except Exception as e:
+        logger.error(f"Failed to touch heartbeat file: {e}")
 
 def job() -> None:
     logger.info("Starting collection schedule update job")
@@ -30,9 +41,16 @@ def job() -> None:
     
     next_interval_minutes = Config.UPDATE_INTERVAL / 60
     logger.info(f"Next update in approximately {next_interval_minutes:.0f} minutes.")
+    # Also touch heartbeat when job completes
+    touch_heartbeat()
 
 def signal_handler(sig: int, frame: Any) -> None:
     logger.info("Shutting down...")
+    if os.path.exists(HEARTBEAT_FILE):
+        try:
+            os.remove(HEARTBEAT_FILE)
+        except Exception:
+            pass
     mqtt_client.stop()
     sys.exit(0)
 
@@ -43,6 +61,9 @@ def main() -> None:
 
     logger.info(f"Starting Brossard Web Scraper for Sector {Config.BROSSARD_SECTOR.upper()}")
     
+    # Initial heartbeat
+    touch_heartbeat()
+
     # Connect to MQTT
     mqtt_client.connect()
 
@@ -59,6 +80,7 @@ def main() -> None:
 
     while True:
         schedule.run_pending()
+        touch_heartbeat()
         time.sleep(1)
 
 if __name__ == "__main__":

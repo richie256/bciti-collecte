@@ -34,4 +34,7 @@ RUN useradd --create-home --shell /bin/bash scraperuser && \
     chown -R scraperuser:scraperuser /app
 USER scraperuser
 
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD find /tmp/heartbeat -mmin -5 || exit 1
+
 CMD ["python", "main.py"]
