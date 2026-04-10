@@ -22,9 +22,9 @@ def test_job():
     with patch('main.get_next_collections') as mock_get_next:
         with patch('main.mqtt_client') as mock_mqtt:
             with patch('main.touch_heartbeat') as mock_touch:
-                mock_get_next.return_value = {"garbage": "2026-04-10"}
+                mock_get_next.return_value = {"garbage": {"next_date": "2026-04-10", "collection_days": "Friday"}}
                 main.job()
-                mock_mqtt.publish_states.assert_called_once_with({"garbage": "2026-04-10"})
+                mock_mqtt.publish_states.assert_called_once_with({"garbage": {"next_date": "2026-04-10", "collection_days": "Friday"}})
                 mock_touch.assert_called_once()
 
 def test_job_no_dates():

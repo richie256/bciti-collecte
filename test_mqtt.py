@@ -1,4 +1,5 @@
 import pytest
+import json
 from unittest.mock import MagicMock, patch
 from mqtt import MQTTClient
 from config import Config
@@ -62,7 +63,10 @@ def test_publish_discovery():
         # Check first call discovery topic
         first_call = mock_client.publish.call_args_list[0]
         topic = first_call[0][0]
+        payload = json.loads(first_call[0][1])
         assert f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_garbage/config" in topic
+        assert "json_attributes_topic" in payload
+        assert payload["json_attributes_topic"].endswith("/attributes")
 
 def test_publish_discovery_exception():
     with patch('paho.mqtt.client.Client') as mock_client_cls:
@@ -78,18 +82,26 @@ def test_publish_states():
         client = MQTTClient()
         
         next_dates = {
-            "garbage": datetime(2026, 4, 10),
-            "recycling": None
+            "garbage": {"next_date": datetime(2026, 4, 10), "collection_days": "Friday"},
+            "recycling": {"next_date": None, "collection_days": "Unknown"}
         }
         client.publish_states(next_dates)
         
-        # Garbage should be published as date string
-        garbage_call = [c for c in mock_client.publish.call_args_list if "garbage/state" in c[0][0]][0]
-        assert garbage_call[0][1] == "2026-04-10"
+        # 2 calls per category (state + attributes) = 4 calls total
+        assert mock_client.publish.call_count == 4
+
+        # Garbage state should be published as date string
+        garbage_state_call = [c for c in mock_client.publish.call_args_list if "garbage/state" in c[0][0]][0]
+        assert garbage_state_call[0][1] == "2026-04-10"
+        
+        # Garbage attributes should have collection_days
+        garbage_attr_call = [c for c in mock_client.publish.call_args_list if "garbage/attributes" in c[0][0]][0]
+        attr_payload = json.loads(garbage_attr_call[0][1])
+        assert attr_payload["collection_days"] == "Friday"
         
         # Recycling should be published as "unknown"
-        recycling_call = [c for c in mock_client.publish.call_args_list if "recycling/state" in c[0][0]][0]
-        assert recycling_call[0][1] == "unknown"
+        recycling_state_call = [c for c in mock_client.publish.call_args_list if "recycling/state" in c[0][0]][0]
+        assert recycling_state_call[0][1] == "unknown"
 
 def test_publish_states_exception():
     from datetime import datetime
@@ -97,7 +109,7 @@ def test_publish_states_exception():
         mock_client = mock_client_cls.return_value
         mock_client.publish.side_effect = Exception("Publish error")
         client = MQTTClient()
-        client.publish_states({"garbage": datetime(2026, 4, 10)}) # Should catch exception
+        client.publish_states({"garbage": {"next_date": datetime(2026, 4, 10), "collection_days": "X"}}) # Should catch exception
 
 def test_stop():
     with patch('paho.mqtt.client.Client') as mock_client_cls:

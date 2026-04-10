@@ -19,8 +19,8 @@ def test_today_preservation():
         "timestamp": time.time(),
         "sector": "m",
         "data": {
-            "garbage": today_str,
-            "recycling": "2026-04-01T00:00:00-04:00"
+            "garbage": {"next_date": today_str, "collection_days": "Friday"},
+            "recycling": {"next_date": "2026-04-01T00:00:00-04:00", "collection_days": "Wednesday"}
         }
     }
     with open(Config.CACHE_FILE, 'w') as f:
@@ -28,10 +28,10 @@ def test_today_preservation():
 
     # 2. Mock parse_web_page to return a DIFFERENT (future) date for garbage
     # This simulates the website rolling over to the next week
-    future_date = datetime(2026, 4, 6, 0, 0, 0, tzinfo=ZoneInfo("America/Toronto"))
+    future_date = datetime(2026, 4, 15, 0, 0, 0, tzinfo=ZoneInfo("America/Toronto"))
     mock_web_dates = {
-        "garbage": future_date,
-        "recycling": datetime(2026, 4, 8, 0, 0, 0, tzinfo=ZoneInfo("America/Toronto"))
+        "garbage": {"next_date": future_date, "collection_days": "Friday"},
+        "recycling": {"next_date": datetime(2026, 4, 8, 0, 0, 0, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Wednesday"}
     }
 
     with patch('scraper.fetch_web_page', return_value="<html></html>"), \
@@ -42,14 +42,14 @@ def test_today_preservation():
         
         print(f"Today is: {today.date()}")
         print(f"Web said garbage is: {future_date.date()}")
-        print(f"Result for garbage: {result['garbage'].date()}")
+        print(f"Result for garbage: {result['garbage']['next_date'].date()}")
         
-        assert result['garbage'].date() == today.date()
+        assert result['garbage']['next_date'].date() == today.date()
         print("Verification successful: Today's date was preserved from cache!")
         
-        # 3. Verify that recycling was updated to future_date (because cache recycling wasn't today)
-        assert result['recycling'].date() == datetime(2026, 4, 8).date()
-        print(f"Result for recycling: {result['recycling'].date()}")
+        # 3. Verify that recycling was updated to web date (because cache recycling wasn't today or tomorrow)
+        assert result['recycling']['next_date'].date() == datetime(2026, 4, 8).date()
+        print(f"Result for recycling: {result['recycling']['next_date'].date()}")
         print("Verification successful: Future date was updated from web!")
 
     # Cleanup

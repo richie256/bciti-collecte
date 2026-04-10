@@ -47,13 +47,16 @@ def fetch_web_page() -> Optional[str]:
         logger.error(f"Failed to fetch web data: {e}")
         return None
 
-def parse_web_page(html_content: Optional[str]) -> Dict[str, Optional[datetime]]:
+def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
     if not html_content:
         return {}
 
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
-        next_collections: Dict[str, Optional[datetime]] = {key: None for key in COLLECTION_MAPPING.values()}
+        next_collections: Dict[str, Dict[str, Any]] = {
+            key: {"next_date": None, "collection_days": "Unknown"} 
+            for key in COLLECTION_MAPPING.values()
+        }
         
         cards = soup.find_all("div", class_="collect-card")
         if not cards:
@@ -79,20 +82,52 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Optional[datetime]]
                         break
             
             if en_key:
-                # Find the "Next collection:" section
-                day_items = card.find_all("div", class_="card-collect-item")
-                for item in day_items:
+                # Find the items inside the card
+                items = card.find_all("div", class_="card-collect-item")
+                for item in items:
                     label_span = item.find("span", class_="span-title")
-                    if label_span and "Next collection" in label_span.get_text():
+                    if not label_span:
+                        continue
+                    
+                    label_text = label_span.get_text()
+                    
+                    if "Collection days" in label_text:
+                        # Collection days are usually in a sibling div or nested span
+                        # Based on curl: it's in a sibling div containing a span with class "mx-2"
+                        # Structure: 
+                        # <div class="days card-collect-item">
+                        #   <div><span>Collection days:</span></div>
+                        #   <div><span>Value</span></div>
+                        # </div>
+                        
+                        # If the label_span is inside a div, we want the next sibling of THAT div
+                        parent_div = label_span.find_parent("div")
+                        if parent_div and parent_div.parent == item:
+                            val_div = parent_div.find_next_sibling("div")
+                        else:
+                            val_div = item.find_next_sibling("div")
+
+                        if val_div:
+                            days_text = val_div.get_text(strip=True)
+                            if days_text:
+                                next_collections[en_key]["collection_days"] = days_text
+
+                    elif "Next collection" in label_text:
                         date_span = item.find("span", class_="info")
+                        if not date_span:
+                            # Sometimes it's in a sibling div
+                            val_div = item.find_next_sibling("div")
+                            if val_div:
+                                date_span = val_div.find("span", class_="info")
+                        
                         if date_span:
                             date_str = date_span.get_text(strip=True)
                             try:
-                                # Date format is DD/MM/YYYY based on curl output
+                                # Date format is DD/MM/YYYY
                                 next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
-                                current_next = next_collections[en_key]
+                                current_next = next_collections[en_key]["next_date"]
                                 if current_next is None or next_date < current_next:
-                                    next_collections[en_key] = next_date
+                                    next_collections[en_key]["next_date"] = next_date
                             except ValueError as ve:
                                 logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
 
@@ -101,13 +136,19 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Optional[datetime]]
         logger.error(f"Failed to parse web data: {e}")
         return {}
 
-def save_cache(next_dates: Dict[str, Optional[datetime]]) -> None:
+def save_cache(next_dates: Dict[str, Dict[str, Any]]) -> None:
     # Convert datetimes to strings for JSON
-    serializable_dates = {k: v.isoformat() if v else None for k, v in next_dates.items()}
+    serializable_data = {}
+    for k, v in next_dates.items():
+        serializable_data[k] = {
+            "next_date": v["next_date"].isoformat() if v["next_date"] else None,
+            "collection_days": v["collection_days"]
+        }
+    
     cache_data = {
         "timestamp": time.time(),
         "sector": Config.BROSSARD_SECTOR,
-        "data": serializable_dates
+        "data": serializable_data
     }
     try:
         with open(Config.CACHE_FILE, 'w') as f:
@@ -129,22 +170,30 @@ def load_cache_raw() -> Optional[Dict[str, Any]]:
             return None
             
         # Convert strings back to datetimes
-        next_dates: Dict[str, Optional[datetime]] = {}
+        parsed_data: Dict[str, Dict[str, Any]] = {}
         for k, v in cache_data.get("data", {}).items():
-            if v:
-                next_dates[k] = datetime.fromisoformat(v)
+            if isinstance(v, dict):
+                # New format
+                parsed_data[k] = {
+                    "next_date": datetime.fromisoformat(v["next_date"]) if v.get("next_date") else None,
+                    "collection_days": v.get("collection_days", "Unknown")
+                }
             else:
-                next_dates[k] = None
+                # Compatibility with old format (v was just a string)
+                parsed_data[k] = {
+                    "next_date": datetime.fromisoformat(v) if v else None,
+                    "collection_days": "Unknown"
+                }
         
         return {
             "timestamp": cache_data.get("timestamp", 0),
-            "data": next_dates
+            "data": parsed_data
         }
     except Exception as e:
         logger.error(f"Failed to load raw cache: {e}")
         return None
 
-def load_cache() -> Optional[Dict[str, Optional[datetime]]]:
+def load_cache() -> Optional[Dict[str, Dict[str, Any]]]:
     raw_cache = load_cache_raw()
     if not raw_cache:
         return None
@@ -158,14 +207,16 @@ def load_cache() -> Optional[Dict[str, Optional[datetime]]]:
     today = datetime.now(ZoneInfo("America/Toronto")).date()
     
     for v in next_dates.values():
-        if v and v.date() < today:
+        if v["next_date"] and v["next_date"].date() < today:
             logger.info("Cache contains past dates, forcing refresh")
             return None
             
     logger.info("Using cached collection data")
     return next_dates
 
-def get_next_collections(force_refresh: bool = False) -> Dict[str, Optional[datetime]]:
+def get_next_collections(force_refresh: bool = False) -> Dict[str, Dict[str, Any]]:
+    from datetime import timedelta
+    
     if not force_refresh:
         cached_data = load_cache()
         if cached_data is not None:
@@ -173,31 +224,40 @@ def get_next_collections(force_refresh: bool = False) -> Dict[str, Optional[date
     
     logger.info("Fetching fresh collection data from website")
     content = fetch_web_page()
-    web_dates = parse_web_page(content)
+    web_data = parse_web_page(content)
     
-    if not web_dates:
+    if not web_data:
         # If fetch failed, return whatever we have in cache even if stale
         raw_cache = load_cache_raw()
         return raw_cache["data"] if raw_cache else {}
 
-    # Merge with raw cache to preserve "today's" dates
+    # Merge with raw cache to preserve "today's" or "tomorrow's" dates
     raw_cache = load_cache_raw()
-    final_dates: Dict[str, Optional[datetime]] = {}
-    today = datetime.now(ZoneInfo("America/Toronto")).date()
+    final_data: Dict[str, Dict[str, Any]] = {}
     
-    # If raw_cache is from a different sector, don't use it for merging
+    now = datetime.now(ZoneInfo("America/Toronto"))
+    today = now.date()
+    tomorrow = (now + timedelta(days=1)).date()
+    
     cached_dates = raw_cache["data"] if raw_cache else {}
     
     for key in COLLECTION_MAPPING.values():
-        web_date = web_dates.get(key)
-        cached_date = cached_dates.get(key)
+        web_item = web_data.get(key, {"next_date": None, "collection_days": "Unknown"})
+        cached_item = cached_dates.get(key, {"next_date": None, "collection_days": "Unknown"})
         
-        if cached_date and cached_date.date() == today:
-            # Preserve today's date if we had it in cache
-            final_dates[key] = cached_date
-            logger.info(f"Preserving today's collection for {key}: {cached_date.date()}")
-        else:
-            final_dates[key] = web_date
+        cached_date = cached_item.get("next_date")
+        
+        # Preservation logic: if we have an imminent collection in cache that the website 
+        # already skipped, preserve it.
+        if cached_date and (cached_date.date() == today or cached_date.date() == tomorrow):
+            # If web says a DIFFERENT future date, preserve the one from cache
+            web_date = web_item.get("next_date")
+            if web_date and web_date.date() > cached_date.date():
+                final_data[key] = cached_item
+                logger.info(f"Preserving imminent collection for {key}: {cached_date.date()}")
+                continue
+        
+        final_data[key] = web_item
             
-    save_cache(final_dates)
-    return final_dates
+    save_cache(final_data)
+    return final_data

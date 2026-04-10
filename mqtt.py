@@ -99,9 +99,11 @@ class MQTTClient:
         for en_key, icon in categories:
             display_name = t.get(en_key, en_key.replace("_", " ").title())
             discovery_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/config"
+            base_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}"
             payload = {
                 "name": f"{display_name}",
-                "state_topic": f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state",
+                "state_topic": f"{base_topic}/state",
+                "json_attributes_topic": f"{base_topic}/attributes",
                 "unique_id": f"brossard_{Config.BROSSARD_SECTOR}_{en_key}",
                 "device_class": "date",
                 "icon": icon,
@@ -114,9 +116,15 @@ class MQTTClient:
             except Exception as e:
                 logger.error(f"Failed to publish discovery for {en_key}: {e}")
 
-    def publish_states(self, next_dates: Dict[str, Optional[datetime]]) -> None:
-        for en_key, event_date in next_dates.items():
-            state_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}/state"
+    def publish_states(self, next_dates: Dict[str, Dict[str, Any]]) -> None:
+        for en_key, data in next_dates.items():
+            base_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}"
+            state_topic = f"{base_topic}/state"
+            attr_topic = f"{base_topic}/attributes"
+            
+            event_date = data.get("next_date")
+            collection_days = data.get("collection_days", "Unknown")
+            
             if event_date:
                 # Format to ISO 8601 date string (YYYY-MM-DD)
                 state_value = event_date.date().isoformat()
@@ -124,10 +132,16 @@ class MQTTClient:
                 state_value = "unknown"
                 
             try:
+                # Publish state
                 self.client.publish(state_topic, state_value, retain=True)
-                logger.info(f"Published state for {en_key}: {state_value}")
+                
+                # Publish attributes
+                attr_payload = {"collection_days": collection_days}
+                self.client.publish(attr_topic, json.dumps(attr_payload), retain=True)
+                
+                logger.info(f"Published state for {en_key}: {state_value} (Days: {collection_days})")
             except Exception as e:
-                logger.error(f"Failed to publish state for {en_key}: {e}")
+                logger.error(f"Failed to publish state or attributes for {en_key}: {e}")
 
     def stop(self) -> None:
         self.client.loop_stop()
