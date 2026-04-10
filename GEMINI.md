@@ -48,6 +48,11 @@ A Python-based web scraper that fetches waste collection schedules for the city 
    ```bash
    docker run --env-file .env brossard-collecte
    ```
+3. Persistent Cache:
+   To ensure collection dates are preserved across container restarts (e.g., for the "tomorrow rollover" fix), mount a volume to `/data`:
+   ```bash
+   docker run -v bciti_data:/data --env-file .env brossard-collecte
+   ```
 
 ## Configuration
 
@@ -61,7 +66,7 @@ The application is configured via environment variables:
 | `MQTT_PASSWORD` | Password for MQTT authentication | `None` |
 | `BROSSARD_SECTOR` | City sector to scrape (e.g., 'm', 'l', etc.) | `m` |
 | `UPDATE_INTERVAL` | Interval between scrapes in seconds | `1800` |
-| `CACHE_FILE` | Path to the local cache file | `collections_cache.json` |
+| `CACHE_FILE` | Path to the local cache file | `/data/collections_cache.json` (Docker) or `collections_cache.json` (Local) |
 | `CACHE_MAX_AGE` | Maximum age of cache in seconds before refresh | `43200` (12 hours) |
 | `RUN_ONCE` | If `true`, exit after the first successful run | `false` |
 | `LANGUAGE` | Language for sensor names (`fr` or `en`) | `fr` |
