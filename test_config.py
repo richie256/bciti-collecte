@@ -12,6 +12,9 @@ def test_config_defaults():
     assert isinstance(Config.HASS_DISCOVERY_ENABLED, bool)
 
 def test_config_web_url():
-    # Ensure web URL reflects the sector
-    expected_url = f"https://brossard.ca/en/collection-calendar/sector-{Config.BROSSARD_SECTOR}/"
+    # Ensure web URL reflects the sector and language
+    if Config.LANGUAGE == "fr":
+        expected_url = f"https://brossard.ca/calendrier-collectes/secteur-{Config.BROSSARD_SECTOR}/"
+    else:
+        expected_url = f"https://brossard.ca/en/collection-calendar/sector-{Config.BROSSARD_SECTOR}/"
     assert Config.WEB_URL == expected_url

@@ -16,13 +16,21 @@ logger = logging.getLogger(__name__)
 # Mapping of English titles on website to internal keys
 COLLECTION_MAPPING: Dict[str, str] = {
     "Garbage": "garbage",
+    "Ordures": "garbage",
     "Recycling": "recycling",
+    "Recyclage": "recycling",
     "Food residues": "food_residues",
+    "Résidus alimentaires": "food_residues",
     "Wooden bulky items": "wooden_bulky_items",
+    "Encombrants en bois": "wooden_bulky_items",
     "Branches and tree trimmings": "branches",
+    "Branches et résidus de coupe d’arbres": "branches",
     "Green waste": "green_waste",
+    "Résidus verts": "green_waste",
     "Fir trees": "fir_trees",
-    "Surplus recovery": "surplus_recovery"
+    "Sapins": "fir_trees",
+    "Surplus recovery": "surplus_recovery",
+    "Surplus de récupération": "surplus_recovery"
 }
 
 def fetch_web_page() -> Optional[str]:
@@ -91,7 +99,7 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
                     
                     label_text = label_span.get_text()
                     
-                    if "Collection days" in label_text:
+                    if "Collection days" in label_text or "Jours de passage" in label_text:
                         # Collection days are usually in a sibling div or nested span
                         # Based on curl: it's in a sibling div containing a span with class "mx-2"
                         # Structure: 
@@ -112,7 +120,7 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
                             if days_text:
                                 next_collections[en_key]["collection_days"] = days_text
 
-                    elif "Next collection" in label_text:
+                    elif "Next collection" in label_text or "Prochaine collecte" in label_text:
                         date_span = item.find("span", class_="info")
                         if not date_span:
                             # Sometimes it's in a sibling div

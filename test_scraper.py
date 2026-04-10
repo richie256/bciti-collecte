@@ -270,3 +270,40 @@ def test_parse_web_page_recycling_specific():
     results = parse_web_page(html)
     assert results["recycling"]["next_date"] == datetime(2026, 4, 23, tzinfo=ZoneInfo("America/Toronto"))
     assert results["recycling"]["collection_days"] == "Thursday, once every two weeks"
+
+def test_parse_web_page_french():
+    html = """
+<div class="collect-card info-outline p-3 my-3">
+    <div class="col-12">
+        <div class="content">
+            <div class="d-flex justify-content-between align-items-center">
+                <h4>
+                <i data-lucide="recycle" aria-hidden="true"></i>
+                <span class="ms-2 span-title">Recyclage</span>
+                </h4>
+            </div>
+            <div class="days card-collect-item">
+                <div>
+                    <i data-lucide="calendar-days" width="20" height="20" color="#231E20" aria-hidden="true"></i>
+                    <span class="ms-2 span-title">Jours de passage :</span>
+                </div>
+                <div>
+                    <span class="mx-2">Jeudi, une fois aux deux semaines</span>
+                </div>
+            </div>
+            <div class="days card-collect-item">
+                <div>
+                <i data-lucide="calendar-days" width="20" height="20" color="#231E20" aria-hidden="true"></i>
+                <span class="ms-2 span-title">Prochaine collecte :</span>
+                </div>
+                <div>
+                <span class="info me-2">23/04/2026 </span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+"""
+    results = parse_web_page(html)
+    assert results["recycling"]["next_date"] == datetime(2026, 4, 23, tzinfo=ZoneInfo("America/Toronto"))
+    assert results["recycling"]["collection_days"] == "Jeudi, une fois aux deux semaines"
