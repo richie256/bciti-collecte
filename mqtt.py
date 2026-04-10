@@ -91,19 +91,25 @@ class MQTTClient:
         while time.time() - start_time < timeout:
             if self.ha_status == "online":
                 if self.ha_language:
-                    logger.info(f"Home Assistant is online. Overriding language to: {self.ha_language}")
-                    Config.set_language(self.ha_language)
-                    # Re-publish discovery in case language changed
-                    if Config.HASS_DISCOVERY_ENABLED:
-                        self.publish_discovery()
+                    logger.info(f"Home Assistant is online. Found language via MQTT: '{self.ha_language}'")
+                    if self.ha_language != Config.LANGUAGE:
+                        logger.info(f"Overriding local language '{Config.LANGUAGE}' with Home Assistant language '{self.ha_language}'")
+                        Config.set_language(self.ha_language)
+                        # Re-publish discovery in case language changed
+                        if Config.HASS_DISCOVERY_ENABLED:
+                            self.publish_discovery()
+                    else:
+                        logger.info(f"Home Assistant language matches local configuration ('{Config.LANGUAGE}'). No override needed.")
                     break
                 # If we have status but no language yet, keep waiting a bit
             time.sleep(0.1)
         
         if self.ha_status != "online":
-            logger.info("Home Assistant status not 'online' or not received. Using defaults.")
+            logger.info(f"Home Assistant status is '{self.ha_status}' (not 'online'). Using local language: '{Config.LANGUAGE}'")
         elif not self.ha_language:
-            logger.info("Home Assistant language not received. Using default language.")
+            logger.info(f"Home Assistant language not received within {timeout}s. Using local language: '{Config.LANGUAGE}'")
+        
+        logger.info(f"Final language configuration: '{Config.LANGUAGE}' (URL: {Config.WEB_URL})")
 
     def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int) -> None:
         logger.info(f"Disconnected from MQTT broker with code {rc}")
