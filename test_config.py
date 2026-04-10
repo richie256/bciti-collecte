@@ -18,3 +18,11 @@ def test_config_web_url():
     else:
         expected_url = f"https://brossard.ca/en/collection-calendar/sector-{Config.BROSSARD_SECTOR}/"
     assert Config.WEB_URL == expected_url
+
+def test_config_set_language():
+    Config.set_language("en")
+    assert Config.LANGUAGE == "en"
+    assert "en" in Config.WEB_URL
+    Config.set_language("fr")
+    assert Config.LANGUAGE == "fr"
+    assert "calendrier-collectes" in Config.WEB_URL

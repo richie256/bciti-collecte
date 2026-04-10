@@ -1,6 +1,7 @@
 import paho.mqtt.client as mqtt
 import json
 import logging
+import time
 from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime
 from config import Config
@@ -40,6 +41,11 @@ class MQTTClient:
     def __init__(self) -> None:
         self.client = mqtt.Client()
         self.availability_topic: str = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}/availability"
+        self.ha_status_topic: str = f"{Config.HASS_DISCOVERY_PREFIX}/status"
+        self.ha_language_topic: str = f"{Config.HASS_DISCOVERY_PREFIX}/system/language"
+        
+        self.ha_status: Optional[str] = None
+        self.ha_language: Optional[str] = None
 
         if Config.MQTT_USERNAME and Config.MQTT_PASSWORD:
             self.client.username_pw_set(Config.MQTT_USERNAME, Config.MQTT_PASSWORD)
@@ -52,16 +58,52 @@ class MQTTClient:
 
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
+        self.client.on_message = self._on_message
 
     def _on_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, int], rc: int) -> None:
         if rc == 0:
             logger.info("Connected to MQTT broker")
+            # Subscribe to HA status and language
+            self.client.subscribe([(self.ha_status_topic, 0), (self.ha_language_topic, 0)])
             # Publish availability
             self.client.publish(self.availability_topic, payload="online", retain=True)
             if Config.HASS_DISCOVERY_ENABLED:
                 self.publish_discovery()
         else:
             logger.error(f"Failed to connect to MQTT broker, return code {rc}")
+
+    def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
+        try:
+            payload = msg.payload.decode()
+            if msg.topic == self.ha_status_topic:
+                self.ha_status = payload.lower()
+                logger.debug(f"Received HA status: {self.ha_status}")
+            elif msg.topic == self.ha_language_topic:
+                self.ha_language = payload.lower()
+                logger.debug(f"Received HA language: {self.ha_language}")
+        except Exception as e:
+            logger.error(f"Error processing MQTT message: {e}")
+
+    def wait_for_ha_config(self, timeout: float = 5.0) -> None:
+        """Wait for HA status and language messages."""
+        logger.info("Waiting for Home Assistant configuration via MQTT...")
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if self.ha_status == "online":
+                if self.ha_language:
+                    logger.info(f"Home Assistant is online. Overriding language to: {self.ha_language}")
+                    Config.set_language(self.ha_language)
+                    # Re-publish discovery in case language changed
+                    if Config.HASS_DISCOVERY_ENABLED:
+                        self.publish_discovery()
+                    break
+                # If we have status but no language yet, keep waiting a bit
+            time.sleep(0.1)
+        
+        if self.ha_status != "online":
+            logger.info("Home Assistant status not 'online' or not received. Using defaults.")
+        elif not self.ha_language:
+            logger.info("Home Assistant language not received. Using default language.")
 
     def _on_disconnect(self, client: mqtt.Client, userdata: Any, rc: int) -> None:
         logger.info(f"Disconnected from MQTT broker with code {rc}")

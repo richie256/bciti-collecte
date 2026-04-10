@@ -67,6 +67,9 @@ def main() -> None:
     # Connect to MQTT
     mqtt_client.connect()
 
+    # Wait for Home Assistant configuration (status/language)
+    mqtt_client.wait_for_ha_config()
+
     # Initial run
     job()
 

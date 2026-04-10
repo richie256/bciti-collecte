@@ -66,6 +66,7 @@ def test_main_run_once():
                         assert pytest_wrapped_e.type == SystemExit
                         assert pytest_wrapped_e.value.code == 0
                         mock_mqtt.connect.assert_called_once()
+                        mock_mqtt.wait_for_ha_config.assert_called_once()
                         mock_job.assert_called_once()
                         mock_mqtt.stop.assert_called_once()
                         mock_touch.assert_called_once()

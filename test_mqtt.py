@@ -118,3 +118,33 @@ def test_stop():
         client.stop()
         mock_client.loop_stop.assert_called_once()
         mock_client.disconnect.assert_called_once()
+
+def test_on_message():
+    with patch('paho.mqtt.client.Client') as mock_client_cls:
+        client = MQTTClient()
+        msg = MagicMock()
+        msg.topic = client.ha_status_topic
+        msg.payload = b"online"
+        client._on_message(None, None, msg)
+        assert client.ha_status == "online"
+
+        msg.topic = client.ha_language_topic
+        msg.payload = b"en"
+        client._on_message(None, None, msg)
+        assert client.ha_language == "en"
+
+def test_wait_for_ha_config_success():
+    with patch('paho.mqtt.client.Client') as mock_client_cls:
+        client = MQTTClient()
+        client.ha_status = "online"
+        client.ha_language = "en"
+        
+        with patch('config.Config.set_language') as mock_set_lang:
+            client.wait_for_ha_config(timeout=0.1)
+            mock_set_lang.assert_called_with("en")
+
+def test_wait_for_ha_config_timeout():
+    with patch('paho.mqtt.client.Client') as mock_client_cls:
+        client = MQTTClient()
+        # Should just return after timeout
+        client.wait_for_ha_config(timeout=0.1)
