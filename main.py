@@ -3,6 +3,7 @@ import logging
 import signal
 import sys
 import os
+import threading
 from typing import Any
 import schedule
 from config import Config
@@ -19,8 +20,11 @@ logger = logging.getLogger(__name__)
 # Heartbeat file path for health check
 HEARTBEAT_FILE = "/tmp/heartbeat"
 
+# Lock for thread safety
+job_lock = threading.Lock()
+
 # Initialize MQTT Client
-mqtt_client = MQTTClient()
+mqtt_client = MQTTClient(on_ha_online=lambda: job())
 
 def touch_heartbeat() -> None:
     try:
@@ -30,19 +34,20 @@ def touch_heartbeat() -> None:
         logger.error(f"Failed to touch heartbeat file: {e}")
 
 def job() -> None:
-    logger.info("Starting collection schedule update job")
-    next_dates = get_next_collections()
-    logger.info(f"Data returned from scraper: {next_dates}")
-    if next_dates:
-        mqtt_client.publish_states(next_dates)
-        logger.info("Successfully updated collection dates")
-    else:
-        logger.warning("No collection dates found or error occurred")
-    
-    next_interval_minutes = Config.UPDATE_INTERVAL / 60
-    logger.info(f"Next update in approximately {next_interval_minutes:.0f} minutes.")
-    # Also touch heartbeat when job completes
-    touch_heartbeat()
+    with job_lock:
+        logger.info("Starting collection schedule update job")
+        next_dates = get_next_collections()
+        logger.info(f"Data returned from scraper: {next_dates}")
+        if next_dates:
+            mqtt_client.publish_states(next_dates)
+            logger.info("Successfully updated collection dates")
+        else:
+            logger.warning("No collection dates found or error occurred")
+        
+        next_interval_minutes = Config.UPDATE_INTERVAL / 60
+        logger.info(f"Next update in approximately {next_interval_minutes:.0f} minutes.")
+        # Also touch heartbeat when job completes
+        touch_heartbeat()
 
 def signal_handler(sig: int, frame: Any) -> None:
     logger.info("Shutting down...")

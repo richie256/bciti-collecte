@@ -18,7 +18,8 @@ def test_on_connect_success():
         mock_client = mock_client_cls.return_value
         client = MQTTClient()
         with patch.object(client, 'publish_discovery') as mock_publish_discovery:
-            client._on_connect(mock_client, None, {}, 0)
+            # _on_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], reason_code: mqtt.ReasonCode, properties: Any)
+            client._on_connect(mock_client, None, {}, 0, None)
             mock_client.publish.assert_called_once_with(client.availability_topic, payload="online", retain=True)
             mock_publish_discovery.assert_called_once()
 
@@ -27,14 +28,14 @@ def test_on_connect_failure():
         mock_client = mock_client_cls.return_value
         client = MQTTClient()
         with patch.object(client, 'publish_discovery') as mock_publish_discovery:
-            client._on_connect(mock_client, None, {}, 1)
+            client._on_connect(mock_client, None, {}, 1, None)
             mock_client.publish.assert_not_called()
             mock_publish_discovery.assert_not_called()
 
 def test_on_disconnect():
     with patch('paho.mqtt.client.Client') as mock_client_cls:
         client = MQTTClient()
-        client._on_disconnect(None, None, 1)
+        client._on_disconnect(None, None, {}, 1, None)
 
 def test_connect():
     with patch('paho.mqtt.client.Client') as mock_client_cls:
@@ -132,6 +133,34 @@ def test_on_message():
         msg.payload = b"en"
         client._on_message(None, None, msg)
         assert client.ha_language == "en"
+
+def test_ha_birth_message_triggers_callback():
+    callback_mock = MagicMock()
+    with patch('paho.mqtt.client.Client') as mock_client_cls:
+        client = MQTTClient(on_ha_online=callback_mock)
+        
+        # Simulate HA coming online
+        msg = MagicMock()
+        msg.topic = client.ha_status_topic
+        msg.payload = b"online"
+        
+        # Initial state is None, so switching to online should trigger callback
+        client._on_message(None, None, msg)
+        assert client.ha_status == "online"
+        callback_mock.assert_called_once()
+        
+        callback_mock.reset_mock()
+        # Sending online again should NOT trigger callback
+        client._on_message(None, None, msg)
+        callback_mock.assert_not_called()
+        
+        # Transitioning away and then back to online should trigger it again
+        msg.payload = b"offline"
+        client._on_message(None, None, msg)
+        
+        msg.payload = b"online"
+        client._on_message(None, None, msg)
+        callback_mock.assert_called_once()
 
 def test_wait_for_ha_config_success():
     with patch('paho.mqtt.client.Client') as mock_client_cls:

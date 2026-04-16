@@ -18,7 +18,7 @@ COLLECTION_MAPPING: Dict[str, str] = {
     "Garbage": "garbage",
     "Ordures": "garbage",
     "Recycling": "recycling",
-    "Recyclage": "recycling",
+    "Récupération": "recycling",
     "Food residues": "food_residues",
     "Résidus alimentaires": "food_residues",
     "Wooden bulky items": "wooden_bulky_items",
