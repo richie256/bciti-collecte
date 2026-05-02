@@ -132,7 +132,7 @@ def test_cache_operations(tmp_path):
     with patch('config.Config.CACHE_FILE', str(cache_file)):
         # Test save_cache
         test_dates = {
-            "garbage": {"next_date": datetime(2026, 4, 10, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"},
+            "garbage": {"next_date": datetime(2030, 4, 10, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"},
             "recycling": {"next_date": None, "collection_days": "Unknown"}
         }
         save_cache(test_dates)
@@ -140,7 +140,7 @@ def test_cache_operations(tmp_path):
         
         # Test load_cache_raw
         raw = load_cache_raw()
-        assert raw["data"]["garbage"]["next_date"] == datetime(2026, 4, 10, tzinfo=ZoneInfo("America/Toronto"))
+        assert raw["data"]["garbage"]["next_date"] == datetime(2030, 4, 10, tzinfo=ZoneInfo("America/Toronto"))
         assert raw["data"]["garbage"]["collection_days"] == "Friday"
         assert raw["data"]["recycling"]["next_date"] is None
         

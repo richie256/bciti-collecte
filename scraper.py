@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 WEB_TITLES: Dict[str, Dict[str, str]] = {
     "fr": {
         "garbage": "Ordures",
-        "recycling": "Récupération",
+        "recycling": "Recyclage",
         "food_residues": "Résidus alimentaires",
         "wooden_bulky_items": "Encombrants en bois",
         "branches": "Branches et résidus de coupe d’arbres",
