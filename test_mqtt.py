@@ -18,8 +18,8 @@ def test_on_connect_success():
         mock_client = mock_client_cls.return_value
         client = MQTTClient()
         with patch.object(client, 'publish_discovery') as mock_publish_discovery:
-            # _on_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], reason_code: mqtt.ReasonCode, properties: Any)
             client._on_connect(mock_client, None, {}, 0, None)
+            assert client._connected is True
             mock_client.publish.assert_called_once_with(client.availability_topic, payload="online", retain=True)
             mock_publish_discovery.assert_called_once()
 
@@ -29,13 +29,16 @@ def test_on_connect_failure():
         client = MQTTClient()
         with patch.object(client, 'publish_discovery') as mock_publish_discovery:
             client._on_connect(mock_client, None, {}, 1, None)
+            assert client._connected is False
             mock_client.publish.assert_not_called()
             mock_publish_discovery.assert_not_called()
 
 def test_on_disconnect():
     with patch('paho.mqtt.client.Client') as mock_client_cls:
         client = MQTTClient()
+        client._connected = True
         client._on_disconnect(None, None, {}, 1, None)
+        assert client._connected is False
 
 def test_connect():
     with patch('paho.mqtt.client.Client') as mock_client_cls:
@@ -50,7 +53,8 @@ def test_connect_exception():
         mock_client = mock_client_cls.return_value
         mock_client.connect.side_effect = Exception("Connect error")
         client = MQTTClient()
-        client.connect() # Should catch exception
+        with pytest.raises(Exception, match="Connect error"):
+            client.connect()
 
 def test_publish_discovery():
     with patch('paho.mqtt.client.Client') as mock_client_cls:

@@ -56,28 +56,47 @@ def test_signal_handler_no_file():
             mock_mqtt.stop.assert_called_once()
 
 def test_main_run_once():
-    with patch('main.signal.signal') as mock_signal:
-        with patch('main.mqtt_client') as mock_mqtt:
-            with patch('main.job') as mock_job:
-                with patch('main.touch_heartbeat') as mock_touch:
-                    with patch('main.Config.RUN_ONCE', True):
-                        with pytest.raises(SystemExit) as pytest_wrapped_e:
-                            main.main()
-                        assert pytest_wrapped_e.type == SystemExit
-                        assert pytest_wrapped_e.value.code == 0
-                        mock_mqtt.connect.assert_called_once()
-                        mock_mqtt.wait_for_ha_config.assert_called_once()
-                        mock_job.assert_called_once()
-                        mock_mqtt.stop.assert_called_once()
-                        mock_touch.assert_called_once()
+    with patch('main.signal.signal'), \
+         patch('main.mqtt_client') as mock_mqtt, \
+         patch('main.job') as mock_job, \
+         patch('main.touch_heartbeat') as mock_touch, \
+         patch('main.Config.MQTT_HOST', 'localhost'), \
+         patch('main.Config.RUN_ONCE', True):
+        with pytest.raises(SystemExit) as pytest_wrapped_e:
+            main.main()
+        assert pytest_wrapped_e.type == SystemExit
+        assert pytest_wrapped_e.value.code == 0
+        mock_mqtt.connect.assert_called_once()
+        mock_mqtt.wait_for_ha_config.assert_called_once()
+        mock_job.assert_called_once()
+        mock_mqtt.stop.assert_called_once()
+        mock_touch.assert_called_once()
 
 def test_main_loop():
     with patch('main.signal.signal'), \
          patch('main.mqtt_client'), \
          patch('main.job'), \
          patch('main.touch_heartbeat'), \
+         patch('main.Config.MQTT_HOST', 'localhost'), \
          patch('main.Config.RUN_ONCE', False), \
          patch('main.schedule.run_pending'), \
          patch('main.time.sleep', side_effect=KeyboardInterrupt):
         with pytest.raises(KeyboardInterrupt):
             main.main()
+
+def test_main_no_mqtt_host():
+    with patch('main.signal.signal'), \
+         patch('main.Config.MQTT_HOST', None):
+        with pytest.raises(SystemExit) as exc:
+            main.main()
+        assert exc.value.code == 1
+
+def test_main_connect_failure():
+    with patch('main.signal.signal'), \
+         patch('main.touch_heartbeat'), \
+         patch('main.Config.MQTT_HOST', 'localhost'), \
+         patch('main.mqtt_client') as mock_mqtt:
+        mock_mqtt.connect.side_effect = Exception("Connection refused")
+        with pytest.raises(SystemExit) as exc:
+            main.main()
+        assert exc.value.code == 1

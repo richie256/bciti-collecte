@@ -47,6 +47,7 @@ class MQTTClient:
         self.ha_status: Optional[str] = None
         self.ha_language: Optional[str] = None
         self.on_ha_online_callback = on_ha_online
+        self._connected: bool = False
 
         if Config.MQTT_USERNAME and Config.MQTT_PASSWORD:
             self.client.username_pw_set(Config.MQTT_USERNAME, Config.MQTT_PASSWORD)
@@ -63,14 +64,14 @@ class MQTTClient:
 
     def _on_connect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], reason_code: mqtt.ReasonCode, properties: Any) -> None:
         if reason_code == 0:
+            self._connected = True
             logger.info("Connected to MQTT broker")
-            # Subscribe to HA status and language
             self.client.subscribe([(self.ha_status_topic, 0), (self.ha_language_topic, 0)])
-            # Publish availability
             self.client.publish(self.availability_topic, payload="online", retain=True)
             if Config.HASS_DISCOVERY_ENABLED:
                 self.publish_discovery()
         else:
+            self._connected = False
             logger.error(f"Failed to connect to MQTT broker, return code {reason_code}")
 
     def _on_message(self, client: mqtt.Client, userdata: Any, msg: mqtt.MQTTMessage) -> None:
@@ -121,14 +122,12 @@ class MQTTClient:
         logger.info(f"Final language configuration: '{Config.LANGUAGE}' (URL: {Config.WEB_URL})")
 
     def _on_disconnect(self, client: mqtt.Client, userdata: Any, flags: Dict[str, Any], reason_code: mqtt.ReasonCode, properties: Any) -> None:
+        self._connected = False
         logger.info(f"Disconnected from MQTT broker with code {reason_code}")
 
     def connect(self) -> None:
-        try:
-            self.client.connect(Config.MQTT_HOST, Config.MQTT_PORT, 60)
-            self.client.loop_start()
-        except Exception as e:
-            logger.error(f"Error connecting to MQTT: {e}")
+        self.client.connect(Config.MQTT_HOST, Config.MQTT_PORT, 60)
+        self.client.loop_start()
 
     def publish_discovery(self) -> None:
         lang = Config.LANGUAGE if Config.LANGUAGE in TRANSLATIONS else "fr"

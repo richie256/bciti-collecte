@@ -64,13 +64,21 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    if not Config.MQTT_HOST:
+        logger.error("MQTT_HOST environment variable is not set.")
+        sys.exit(1)
+
     logger.info(f"Starting Brossard Web Scraper for Sector {Config.BROSSARD_SECTOR.upper()}")
-    
+
     # Initial heartbeat
     touch_heartbeat()
 
     # Connect to MQTT
-    mqtt_client.connect()
+    try:
+        mqtt_client.connect()
+    except Exception as e:
+        logger.error(f"Failed to connect to MQTT broker at {Config.MQTT_HOST}:{Config.MQTT_PORT}: {e}")
+        sys.exit(1)
 
     # Wait for Home Assistant configuration (status/language)
     mqtt_client.wait_for_ha_config()

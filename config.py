@@ -1,7 +1,7 @@
 import os
 
 class Config:
-    MQTT_HOST: str = os.getenv("MQTT_HOST", "undef")
+    MQTT_HOST: str | None = os.getenv("MQTT_HOST")
     MQTT_PORT: int = int(os.getenv("MQTT_PORT", 1883))
     MQTT_USERNAME: str | None = os.getenv("MQTT_USERNAME")
     MQTT_PASSWORD: str | None = os.getenv("MQTT_PASSWORD")
