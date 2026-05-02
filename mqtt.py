@@ -160,12 +160,15 @@ class MQTTClient:
             payload = {
                 "name": f"{display_name}",
                 "state_topic": f"{base_topic}/state",
-                "value_template": "{% if value != 'unknown' %}{{ value }}{% endif %}",
                 "json_attributes_topic": f"{base_topic}/attributes",
                 "unique_id": f"brossard_{Config.BROSSARD_SECTOR}_{en_key}",
                 "device_class": "date",
                 "icon": icon,
-                "availability_topic": self.availability_topic,
+                "availability": [
+                    {"topic": self.availability_topic},
+                    {"topic": f"{base_topic}/availability"},
+                ],
+                "availability_mode": "all",
                 "device": device
             }
             try:
@@ -179,25 +182,22 @@ class MQTTClient:
             base_topic = f"{Config.HASS_DISCOVERY_PREFIX}/sensor/brossard_{Config.BROSSARD_SECTOR}_{en_key}"
             state_topic = f"{base_topic}/state"
             attr_topic = f"{base_topic}/attributes"
-            
+            sensor_availability_topic = f"{base_topic}/availability"
+
             event_date = data.get("next_date")
             collection_days = data.get("collection_days", "Unknown")
-            
-            if event_date:
-                # Format to ISO 8601 date string (YYYY-MM-DD)
-                state_value = event_date.date().isoformat()
-            else:
-                state_value = "unknown"
-                
+
             try:
-                # Publish state
-                self.client.publish(state_topic, state_value, retain=True)
-                
-                # Publish attributes
-                attr_payload = {"collection_days": collection_days}
-                self.client.publish(attr_topic, json.dumps(attr_payload), retain=True)
-                
-                logger.info(f"Published state for {en_key}: {state_value} (Days: {collection_days})")
+                if event_date:
+                    state_value = event_date.date().isoformat()
+                    self.client.publish(state_topic, state_value, retain=True)
+                    self.client.publish(sensor_availability_topic, "online", retain=True)
+                    attr_payload = {"collection_days": collection_days}
+                    self.client.publish(attr_topic, json.dumps(attr_payload), retain=True)
+                    logger.info(f"Published state for {en_key}: {state_value} (Days: {collection_days})")
+                else:
+                    self.client.publish(sensor_availability_topic, "offline", retain=True)
+                    logger.info(f"No date for {en_key}, marked as unavailable")
             except Exception as e:
                 logger.error(f"Failed to publish state or attributes for {en_key}: {e}")
 

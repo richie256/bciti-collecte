@@ -88,21 +88,26 @@ def test_publish_states():
         }
         client.publish_states(next_dates)
         
-        # 2 calls per category (state + attributes) = 4 calls total
+        # garbage: state + availability + attributes = 3 calls; recycling: availability only = 1 call
         assert mock_client.publish.call_count == 4
 
         # Garbage state should be published as date string
         garbage_state_call = [c for c in mock_client.publish.call_args_list if "garbage/state" in c[0][0]][0]
         assert garbage_state_call[0][1] == "2026-04-10"
-        
+
+        # Garbage availability should be "online"
+        garbage_avail_call = [c for c in mock_client.publish.call_args_list if "garbage/availability" in c[0][0]][0]
+        assert garbage_avail_call[0][1] == "online"
+
         # Garbage attributes should have collection_days
         garbage_attr_call = [c for c in mock_client.publish.call_args_list if "garbage/attributes" in c[0][0]][0]
         attr_payload = json.loads(garbage_attr_call[0][1])
         assert attr_payload["collection_days"] == "Friday"
-        
-        # Recycling should be published as "unknown"
-        recycling_state_call = [c for c in mock_client.publish.call_args_list if "recycling/state" in c[0][0]][0]
-        assert recycling_state_call[0][1] == "unknown"
+
+        # Recycling has no date: only availability "offline" should be published, no state
+        recycling_avail_call = [c for c in mock_client.publish.call_args_list if "recycling/availability" in c[0][0]][0]
+        assert recycling_avail_call[0][1] == "offline"
+        assert not any("recycling/state" in c[0][0] for c in mock_client.publish.call_args_list)
 
 def test_publish_states_exception():
     from datetime import datetime
