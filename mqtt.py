@@ -160,6 +160,7 @@ class MQTTClient:
             payload = {
                 "name": f"{display_name}",
                 "state_topic": f"{base_topic}/state",
+                "value_template": "{% if value != 'unknown' %}{{ value }}{% endif %}",
                 "json_attributes_topic": f"{base_topic}/attributes",
                 "unique_id": f"brossard_{Config.BROSSARD_SECTOR}_{en_key}",
                 "device_class": "date",

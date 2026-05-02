@@ -6,6 +6,10 @@ __pycache__/
 # Cache
 collections_cache.json
 
+# AI assistant context files
+CLAUDE.md
+GEMINI.md
+
 # Environments
 .env
 .venv

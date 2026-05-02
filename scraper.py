@@ -13,25 +13,43 @@ from config import Config
 
 logger = logging.getLogger(__name__)
 
-# Mapping of English titles on website to internal keys
-COLLECTION_MAPPING: Dict[str, str] = {
-    "Garbage": "garbage",
-    "Ordures": "garbage",
-    "Recycling": "recycling",
-    "Récupération": "recycling",
-    "Food residues": "food_residues",
-    "Résidus alimentaires": "food_residues",
-    "Wooden bulky items": "wooden_bulky_items",
-    "Encombrants en bois": "wooden_bulky_items",
-    "Branches and tree trimmings": "branches",
-    "Branches et résidus de coupe d’arbres": "branches",
-    "Green waste": "green_waste",
-    "Résidus verts": "green_waste",
-    "Fir trees": "fir_trees",
-    "Sapins": "fir_trees",
-    "Surplus recovery": "surplus_recovery",
-    "Surplus de récupération": "surplus_recovery"
+# Titles as they appear on the Brossard website
+WEB_TITLES: Dict[str, Dict[str, str]] = {
+    "fr": {
+        "garbage": "Ordures",
+        "recycling": "Récupération",
+        "food_residues": "Résidus alimentaires",
+        "wooden_bulky_items": "Encombrants en bois",
+        "branches": "Branches et résidus de coupe d’arbres",
+        "green_waste": "Résidus verts",
+        "fir_trees": "Sapins",
+        "surplus_recovery": "Surplus de récupération"
+    },
+    "en": {
+        "garbage": "Garbage",
+        "recycling": "Recycling",
+        "food_residues": "Food residues",
+        "wooden_bulky_items": "Wooden bulky items",
+        "branches": "Branches and tree trimmings",
+        "green_waste": "Green waste",
+        "fir_trees": "Fir trees",
+        "surplus_recovery": "Surplus recovery"
+    }
 }
+
+def get_internal_key(title: str) -> Optional[str]:
+    """Identify the internal key from a website title."""
+    # Try the current language first
+    current_lang = Config.LANGUAGE
+    # Priority: Current Config, then any other language available in WEB_TITLES
+    langs = [current_lang] + [l for l in WEB_TITLES.keys() if l != current_lang]
+    
+    for lang in langs:
+        mapping = WEB_TITLES.get(lang, {})
+        for key, web_title in mapping.items():
+            if web_title.lower() in title.lower():
+                return key
+    return None
 
 def fetch_web_page() -> Optional[str]:
     try:
@@ -61,9 +79,15 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
 
     try:
         soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Get all possible keys from WEB_TITLES
+        all_keys = set()
+        for lang_map in WEB_TITLES.values():
+            all_keys.update(lang_map.keys())
+
         next_collections: Dict[str, Dict[str, Any]] = {
             key: {"next_date": None, "collection_days": "Unknown"} 
-            for key in COLLECTION_MAPPING.values()
+            for key in all_keys
         }
         
         cards = soup.find_all("div", class_="collect-card")
@@ -81,13 +105,7 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
                 continue
             
             title = title_span.get_text(strip=True)
-            en_key = COLLECTION_MAPPING.get(title)
-            if not en_key:
-                # Try partial match if exact match fails
-                for k, v in COLLECTION_MAPPING.items():
-                    if k.lower() in title.lower():
-                        en_key = v
-                        break
+            en_key = get_internal_key(title)
             
             if en_key:
                 # Find the items inside the card
@@ -249,7 +267,7 @@ def get_next_collections(force_refresh: bool = False) -> Dict[str, Dict[str, Any
     
     cached_dates = raw_cache["data"] if raw_cache else {}
     
-    for key in COLLECTION_MAPPING.values():
+    for key in web_data.keys():
         web_item = web_data.get(key, {"next_date": None, "collection_days": "Unknown"})
         cached_item = cached_dates.get(key, {"next_date": None, "collection_days": "Unknown"})
         
