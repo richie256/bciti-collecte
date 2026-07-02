@@ -90,6 +90,66 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
             for key in all_keys
         }
         
+        # 1. Try modern layout first
+        modern_cards = soup.find_all("article", class_="collect-card-modern")
+        occasional_cards = soup.find_all("article", class_="collect-occasional__item")
+        
+        found_any_modern = False
+        
+        for card in modern_cards:
+            title_tag = card.find(class_="collect-card-modern__title")
+            if not title_tag:
+                continue
+            title = title_tag.get_text(strip=True)
+            en_key = get_internal_key(title)
+            if en_key:
+                found_any_modern = True
+                day_tag = card.find(class_="collect-card-modern__row-day")
+                day = day_tag.get_text(strip=True) if day_tag else None
+                freq_tag = card.find(class_="collect-card-modern__freq")
+                freq = freq_tag.get_text(strip=True) if freq_tag else None
+                
+                if day and freq:
+                    next_collections[en_key]["collection_days"] = f"{day}, {freq}"
+                elif day:
+                    next_collections[en_key]["collection_days"] = day
+                elif freq:
+                    next_collections[en_key]["collection_days"] = freq
+                    
+                next_tag = card.find(class_="collect-card-modern__next-pill")
+                if next_tag:
+                    date_str = next_tag.get_text(strip=True)
+                    try:
+                        next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+                        next_collections[en_key]["next_date"] = next_date
+                    except ValueError as ve:
+                        logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
+
+        for card in occasional_cards:
+            title_tag = card.find(class_="collect-occasional__title")
+            if not title_tag:
+                continue
+            title = title_tag.get_text(strip=True)
+            en_key = get_internal_key(title)
+            if en_key:
+                found_any_modern = True
+                meta_tag = card.find(class_="collect-occasional__meta")
+                if meta_tag:
+                    next_collections[en_key]["collection_days"] = meta_tag.get_text(strip=True)
+                    
+                next_tag = card.find(class_="collect-card-modern__next-pill")
+                if next_tag:
+                    date_str = next_tag.get_text(strip=True)
+                    try:
+                        next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+                        next_collections[en_key]["next_date"] = next_date
+                    except ValueError as ve:
+                        logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
+                        
+        if found_any_modern:
+            return next_collections
+
+        # Fallback to old layout
         cards = soup.find_all("div", class_="collect-card")
         if not cards:
             logger.warning("No collection cards found in HTML.")

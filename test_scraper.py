@@ -307,3 +307,75 @@ def test_parse_web_page_french():
     results = parse_web_page(html)
     assert results["recycling"]["next_date"] == datetime(2026, 4, 23, tzinfo=ZoneInfo("America/Toronto"))
     assert results["recycling"]["collection_days"] == "Jeudi, une fois aux deux semaines"
+
+
+def test_parse_web_page_modern_layout():
+    # Test modern card and occasional card parser in French and English
+    html = """
+    <article class="collect-card-modern is-cream">
+        <div class="collect-card-modern__head">
+            <h3 class="collect-card-modern__title">Ordures</h3>
+        </div>
+        <div class="collect-card-modern__body">
+            <div class="collect-card-modern__row collect-card-modern__row-day">
+                <strong>Lundi</strong>
+            </div>
+            <div class="collect-card-modern__freq">Une fois aux deux semaines</div>
+            <div class="collect-card-modern__next">
+                <span class="collect-card-modern__next-pill">06/07/2026</span>
+            </div>
+        </div>
+    </article>
+    <article class="collect-card-modern is-blue">
+        <div class="collect-card-modern__head">
+            <h3 class="collect-card-modern__title">Recycling</h3>
+        </div>
+        <div class="collect-card-modern__body">
+            <div class="collect-card-modern__row collect-card-modern__row-day">
+                <strong>Thursday</strong>
+            </div>
+            <div class="collect-card-modern__freq">Once every two weeks</div>
+            <div class="collect-card-modern__next">
+                <span class="collect-card-modern__next-pill">16/07/2026</span>
+            </div>
+        </div>
+    </article>
+    <div class="collect-occasional__list">
+        <article class="collect-occasional__item">
+            <div class="collect-occasional__info">
+                <strong class="collect-occasional__title">Encombrants en bois</strong>
+                <span class="collect-occasional__meta">Quatrième mardi de chaque mois</span>
+                <div class="collect-card-modern__next">
+                    <span class="collect-card-modern__next-pill">28/07/2026</span>
+                </div>
+            </div>
+        </article>
+        <article class="collect-occasional__item">
+            <div class="collect-occasional__info">
+                <strong class="collect-occasional__title">Fir trees</strong>
+                <span class="collect-occasional__meta">Tuesday - Once every two weeks in January</span>
+            </div>
+        </article>
+    </div>
+    """
+    
+    # We will test in "fr" language context (default)
+    with patch('config.Config.LANGUAGE', 'fr'):
+        results = parse_web_page(html)
+        
+        # Ordures (French title)
+        assert results["garbage"]["next_date"] == datetime(2026, 7, 6, tzinfo=ZoneInfo("America/Toronto"))
+        assert results["garbage"]["collection_days"] == "Lundi, Une fois aux deux semaines"
+        
+        # Recycling (English title but should be mapped since Config fallback checks other langs)
+        assert results["recycling"]["next_date"] == datetime(2026, 7, 16, tzinfo=ZoneInfo("America/Toronto"))
+        assert results["recycling"]["collection_days"] == "Thursday, Once every two weeks"
+        
+        # Encombrants en bois
+        assert results["wooden_bulky_items"]["next_date"] == datetime(2026, 7, 28, tzinfo=ZoneInfo("America/Toronto"))
+        assert results["wooden_bulky_items"]["collection_days"] == "Quatrième mardi de chaque mois"
+        
+        # Fir trees (no next collection date)
+        assert results["fir_trees"]["next_date"] is None
+        assert results["fir_trees"]["collection_days"] == "Tuesday - Once every two weeks in January"
+
