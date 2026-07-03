@@ -133,7 +133,8 @@ def test_cache_operations(tmp_path):
         # Test save_cache
         test_dates = {
             "garbage": {"next_date": datetime(2030, 4, 10, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"},
-            "recycling": {"next_date": None, "collection_days": "Unknown"}
+            "recycling": {"next_date": datetime(2030, 4, 9, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Thursday"},
+            "food_residues": {"next_date": datetime(2030, 4, 3, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"}
         }
         save_cache(test_dates)
         assert os.path.exists(cache_file)
@@ -142,7 +143,7 @@ def test_cache_operations(tmp_path):
         raw = load_cache_raw()
         assert raw["data"]["garbage"]["next_date"] == datetime(2030, 4, 10, tzinfo=ZoneInfo("America/Toronto"))
         assert raw["data"]["garbage"]["collection_days"] == "Friday"
-        assert raw["data"]["recycling"]["next_date"] is None
+        assert raw["data"]["recycling"]["next_date"] == datetime(2030, 4, 9, tzinfo=ZoneInfo("America/Toronto"))
         
         # Test load_cache (not expired)
         loaded = load_cache()
@@ -156,11 +157,38 @@ def test_cache_operations(tmp_path):
         with patch('config.Config.BROSSARD_SECTOR', 'other'):
             assert load_cache_raw() is None
 
+def test_load_cache_invalid_essential(tmp_path):
+    cache_file = tmp_path / "cache.json"
+    with patch('config.Config.CACHE_FILE', str(cache_file)):
+        # Missing recycling
+        test_dates = {
+            "garbage": {"next_date": datetime(2030, 4, 10, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"},
+            "food_residues": {"next_date": datetime(2030, 4, 3, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"}
+        }
+        save_cache(test_dates)
+        assert load_cache() is None
+
+        # recycling next_date is None
+        test_dates["recycling"] = {"next_date": None, "collection_days": "Thursday"}
+        save_cache(test_dates)
+        assert load_cache() is None
+
+        # recycling collection_days is Unknown
+        test_dates["recycling"] = {"next_date": datetime(2030, 4, 9, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Unknown"}
+        save_cache(test_dates)
+        assert load_cache() is None
+
 def test_load_cache_past_dates(tmp_path):
     cache_file = tmp_path / "cache.json"
     with patch('config.Config.CACHE_FILE', str(cache_file)):
         past_date = datetime(2000, 1, 1, tzinfo=ZoneInfo("America/Toronto"))
-        save_cache({"garbage": {"next_date": past_date, "collection_days": "X"}})
+        # We need to provide valid placeholder dates for essential collections, but one of them (garbage) is a past date
+        test_dates = {
+            "garbage": {"next_date": past_date, "collection_days": "Friday"},
+            "recycling": {"next_date": datetime(2030, 4, 9, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Thursday"},
+            "food_residues": {"next_date": datetime(2030, 4, 3, tzinfo=ZoneInfo("America/Toronto")), "collection_days": "Friday"}
+        }
+        save_cache(test_dates)
         assert load_cache() is None
 
 def test_load_cache_no_file(tmp_path):

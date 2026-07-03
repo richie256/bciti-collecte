@@ -290,6 +290,15 @@ def load_cache() -> Optional[Dict[str, Dict[str, Any]]]:
         return None
     
     next_dates = raw_cache["data"]
+    
+    # Verify essential year-round collections are present and valid
+    essential_keys = ["garbage", "recycling", "food_residues"]
+    for key in essential_keys:
+        item = next_dates.get(key)
+        if not item or item.get("next_date") is None or item.get("collection_days") == "Unknown":
+            logger.info(f"Cache is invalid because essential collection '{key}' is missing, None, or Unknown. Forcing refresh.")
+            return None
+            
     today = datetime.now(ZoneInfo("America/Toronto")).date()
     
     for v in next_dates.values():
