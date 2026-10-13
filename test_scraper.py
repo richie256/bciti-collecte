@@ -5,7 +5,7 @@ import json
 from unittest.mock import MagicMock, patch
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
-from scraper import parse_web_page, fetch_web_page, save_cache, load_cache_raw, load_cache, get_next_collections
+from scraper import parse_web_page, fetch_web_page, save_cache, load_cache_raw, load_cache, get_next_collections, parse_date_string
 from config import Config
 
 SAMPLE_HTML = """
@@ -406,4 +406,99 @@ def test_parse_web_page_modern_layout():
         # Fir trees (no next collection date)
         assert results["fir_trees"]["next_date"] is None
         assert results["fir_trees"]["collection_days"] == "Tuesday - Once every two weeks in January"
+
+
+def test_parse_date_string():
+    tz = ZoneInfo("America/Toronto")
+    
+    # French month names and ordinal
+    assert parse_date_string("26 octobre 2026") == datetime(2026, 10, 26, tzinfo=tz)
+    assert parse_date_string("22 octobre 2026") == datetime(2026, 10, 22, tzinfo=tz)
+    assert parse_date_string("16 octobre 2026") == datetime(2026, 10, 16, tzinfo=tz)
+    assert parse_date_string("20 octobre 2026") == datetime(2026, 10, 20, tzinfo=tz)
+    assert parse_date_string("14 octobre 2026") == datetime(2026, 10, 14, tzinfo=tz)
+    assert parse_date_string("3 novembre 2026") == datetime(2026, 11, 3, tzinfo=tz)
+    assert parse_date_string("1er mai 2026") == datetime(2026, 5, 1, tzinfo=tz)
+    assert parse_date_string("15 févr. 2026") == datetime(2026, 2, 15, tzinfo=tz)
+    assert parse_date_string("15 aout 2026") == datetime(2026, 8, 15, tzinfo=tz)
+    assert parse_date_string("10 décembre 2026") == datetime(2026, 12, 10, tzinfo=tz)
+
+    # English month names
+    assert parse_date_string("26 October 2026") == datetime(2026, 10, 26, tzinfo=tz)
+    assert parse_date_string("October 26, 2026") == datetime(2026, 10, 26, tzinfo=tz)
+    assert parse_date_string("1st October 2026") == datetime(2026, 10, 1, tzinfo=tz)
+
+    # Numeric formats
+    assert parse_date_string("06/07/2026") == datetime(2026, 7, 6, tzinfo=tz)
+    assert parse_date_string("2026-07-06") == datetime(2026, 7, 6, tzinfo=tz)
+    assert parse_date_string("06-07-2026") == datetime(2026, 7, 6, tzinfo=tz)
+
+    # With non-breaking spaces or weekdays
+    assert parse_date_string("26\xa0octobre\xa02026") == datetime(2026, 10, 26, tzinfo=tz)
+    assert parse_date_string("Lundi 26 octobre 2026") == datetime(2026, 10, 26, tzinfo=tz)
+
+    # Invalid / empty
+    assert parse_date_string(None) is None
+    assert parse_date_string("") is None
+    assert parse_date_string("invalid-date") is None
+    assert parse_date_string("31 février 2026") is None
+
+
+def test_parse_web_page_modern_layout_french_dates():
+    html = """
+    <article class="collect-card-modern is-cream">
+        <div class="collect-card-modern__head">
+            <h3 class="collect-card-modern__title">Ordures</h3>
+        </div>
+        <div class="collect-card-modern__body">
+            <div class="collect-card-modern__row collect-card-modern__row-day">
+                <strong>Lundi</strong>
+            </div>
+            <div class="collect-card-modern__freq">Une fois aux deux semaines</div>
+            <div class="collect-card-modern__next">
+                <span class="collect-card-modern__next-pill">26 octobre 2026</span>
+            </div>
+        </div>
+    </article>
+    <article class="collect-card-modern is-blue">
+        <div class="collect-card-modern__head">
+            <h3 class="collect-card-modern__title">Recyclage</h3>
+        </div>
+        <div class="collect-card-modern__body">
+            <div class="collect-card-modern__row collect-card-modern__row-day">
+                <strong>Jeudi</strong>
+            </div>
+            <div class="collect-card-modern__freq">Une fois aux deux semaines</div>
+            <div class="collect-card-modern__next">
+                <span class="collect-card-modern__next-pill">22 octobre 2026</span>
+            </div>
+        </div>
+    </article>
+    <div class="collect-occasional__list">
+        <article class="collect-occasional__item">
+            <div class="collect-occasional__info">
+                <strong class="collect-occasional__title">Branches et résidus de coupe d’arbres</strong>
+                <span class="collect-occasional__meta">Troisième mardi de chaque mois</span>
+                <div class="collect-card-modern__next">
+                    <span class="collect-card-modern__next-pill">20 octobre 2026</span>
+                </div>
+            </div>
+        </article>
+    </div>
+    """
+    with patch('config.Config.LANGUAGE', 'fr'):
+        results = parse_web_page(html)
+        tz = ZoneInfo("America/Toronto")
+        assert results["garbage"]["next_date"] == datetime(2026, 10, 26, tzinfo=tz)
+        assert results["recycling"]["next_date"] == datetime(2026, 10, 22, tzinfo=tz)
+        assert results["branches"]["next_date"] == datetime(2026, 10, 20, tzinfo=tz)
+
+
+def test_save_cache_nested_directory(tmp_path):
+    nested_dir = tmp_path / "sub" / "folder"
+    cache_file = nested_dir / "cache.json"
+    with patch('config.Config.CACHE_FILE', str(cache_file)):
+        save_cache({"garbage": {"next_date": None, "collection_days": "Lundi"}})
+        assert os.path.exists(cache_file)
+
 

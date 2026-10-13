@@ -2,6 +2,7 @@ import requests
 import json
 import time
 import os
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime, date, timezone
 from zoneinfo import ZoneInfo
@@ -36,6 +37,98 @@ WEB_TITLES: Dict[str, Dict[str, str]] = {
         "surplus_recovery": "Surplus recovery"
     }
 }
+
+MONTH_NAMES: Dict[str, int] = {
+    # French
+    "janvier": 1, "janv": 1, "jan": 1,
+    "février": 2, "fevrier": 2, "févr": 2, "fevr": 2, "fév": 2, "fev": 2,
+    "mars": 3, "mar": 3,
+    "avril": 4, "avr": 4,
+    "mai": 5,
+    "juin": 6,
+    "juillet": 7, "juil": 7,
+    "août": 8, "aout": 8, "aoû": 8, "aou": 8,
+    "septembre": 9, "sept": 9, "sep": 9,
+    "octobre": 10, "oct": 10,
+    "novembre": 11, "nov": 11,
+    "décembre": 12, "decembre": 12, "déc": 12, "dec": 12,
+    # English
+    "january": 1,
+    "february": 2, "feb": 2,
+    "march": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12, "dec": 12
+}
+
+def parse_date_string(date_str: Optional[str]) -> Optional[datetime]:
+    """Parse a date string in various formats (French, English, ISO, DD/MM/YYYY)."""
+    if not date_str:
+        return None
+
+    cleaned = re.sub(r'\s+', ' ', date_str.replace('\xa0', ' ')).strip()
+    if not cleaned:
+        return None
+
+    # 1. Exact numeric formats
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(cleaned, fmt).replace(tzinfo=ZoneInfo("America/Toronto"))
+        except ValueError:
+            pass
+
+    # 2. Embedded numeric formats: DD/MM/YYYY
+    m_slash = re.search(r'\b(\d{1,2})/(\d{1,2})/(\d{4})\b', cleaned)
+    if m_slash:
+        try:
+            d, m, y = int(m_slash.group(1)), int(m_slash.group(2)), int(m_slash.group(3))
+            return datetime.strptime(f"{d:02d}/{m:02d}/{y:04d}", "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+        except ValueError:
+            pass
+
+    # 3. Embedded numeric formats: YYYY-MM-DD
+    m_iso = re.search(r'\b(\d{4})-(\d{1,2})-(\d{1,2})\b', cleaned)
+    if m_iso:
+        try:
+            y, m, d = int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))
+            return datetime.strptime(f"{d:02d}/{m:02d}/{y:04d}", "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+        except ValueError:
+            pass
+
+    # 4. Text formats: [optional weekday] DD [ordinal] MONTH YYYY (e.g. 26 octobre 2026, 1er mai 2026)
+    m1 = re.search(r'(?:^|[^\w])(\d{1,2})(?:er|re|st|nd|rd|th)?\s+([a-zA-ZÀ-ÿ\.]+)\s+(\d{4})\b', cleaned, re.IGNORECASE)
+    if m1:
+        day = int(m1.group(1))
+        month_str = m1.group(2).rstrip('.').lower()
+        year = int(m1.group(3))
+        if month_str in MONTH_NAMES:
+            try:
+                month = MONTH_NAMES[month_str]
+                return datetime.strptime(f"{day:02d}/{month:02d}/{year:04d}", "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+            except ValueError:
+                pass
+
+    # 5. Text formats: [optional weekday] MONTH DD [ordinal],? YYYY (e.g. October 26, 2026)
+    m2 = re.search(r'(?:^|[^\w])([a-zA-ZÀ-ÿ\.]+)\s+(\d{1,2})(?:er|re|st|nd|rd|th)?,?\s+(\d{4})\b', cleaned, re.IGNORECASE)
+    if m2:
+        month_str = m2.group(1).rstrip('.').lower()
+        day = int(m2.group(2))
+        year = int(m2.group(3))
+        if month_str in MONTH_NAMES:
+            try:
+                month = MONTH_NAMES[month_str]
+                return datetime.strptime(f"{day:02d}/{month:02d}/{year:04d}", "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+            except ValueError:
+                pass
+
+    return None
+
 
 def get_internal_key(title: str) -> Optional[str]:
     """Identify the internal key from a website title."""
@@ -119,11 +212,11 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
                 next_tag = card.find(class_="collect-card-modern__next-pill")
                 if next_tag:
                     date_str = next_tag.get_text(strip=True)
-                    try:
-                        next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+                    next_date = parse_date_string(date_str)
+                    if next_date:
                         next_collections[en_key]["next_date"] = next_date
-                    except ValueError as ve:
-                        logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
+                    else:
+                        logger.error(f"Failed to parse date string '{date_str}' for '{title}'")
 
         for card in occasional_cards:
             title_tag = card.find(class_="collect-occasional__title")
@@ -140,11 +233,11 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
                 next_tag = card.find(class_="collect-card-modern__next-pill")
                 if next_tag:
                     date_str = next_tag.get_text(strip=True)
-                    try:
-                        next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+                    next_date = parse_date_string(date_str)
+                    if next_date:
                         next_collections[en_key]["next_date"] = next_date
-                    except ValueError as ve:
-                        logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
+                    else:
+                        logger.error(f"Failed to parse date string '{date_str}' for '{title}'")
                         
         if found_any_modern:
             return next_collections
@@ -208,14 +301,13 @@ def parse_web_page(html_content: Optional[str]) -> Dict[str, Dict[str, Any]]:
                         
                         if date_span:
                             date_str = date_span.get_text(strip=True)
-                            try:
-                                # Date format is DD/MM/YYYY
-                                next_date = datetime.strptime(date_str, "%d/%m/%Y").replace(tzinfo=ZoneInfo("America/Toronto"))
+                            next_date = parse_date_string(date_str)
+                            if next_date:
                                 current_next = next_collections[en_key]["next_date"]
                                 if current_next is None or next_date < current_next:
                                     next_collections[en_key]["next_date"] = next_date
-                            except ValueError as ve:
-                                logger.error(f"Failed to parse date string '{date_str}' for '{title}': {ve}")
+                            else:
+                                logger.error(f"Failed to parse date string '{date_str}' for '{title}'")
 
         return next_collections
     except Exception as e:
@@ -237,6 +329,9 @@ def save_cache(next_dates: Dict[str, Dict[str, Any]]) -> None:
         "data": serializable_data
     }
     try:
+        dir_name = os.path.dirname(Config.CACHE_FILE)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         with open(Config.CACHE_FILE, 'w') as f:
             json.dump(cache_data, f)
         logger.info(f"Cache saved to {Config.CACHE_FILE}")
